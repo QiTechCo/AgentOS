@@ -220,11 +220,13 @@ def handoff_task(target_agent: str, task_description: str, context_payload: str)
     
     # Update active agent and add handoff logs
     handoff_entry = {
+        "id": str(uuid.uuid4())[:8],
         "timestamp": datetime.now().isoformat(),
         "from_agent": ctx.get("active_agent", "Unknown"),
         "to_agent": target_agent,
         "task": task_description,
-        "payload": context_payload
+        "payload": context_payload,
+        "status": "pending"
     }
     
     ctx["active_agent"] = f"Handoff to {target_agent}"
@@ -235,6 +237,31 @@ def handoff_task(target_agent: str, task_description: str, context_payload: str)
     
     _write_json("context.json", ctx)
     return f"Handoff to {target_agent} recorded."
+
+
+@mcp.tool()
+async def recall_memories_tool(query: str, limit: int = 5) -> str:
+    """Recall semantically relevant project memories and documentation from the Qdrant database.
+    
+    Args:
+        query: The semantic search query (e.g. 'morning briefs', 'how to run tests', 'faxing capabilities').
+        limit: Number of relevant results to retrieve.
+    """
+    from ..bridges.memory_os import recall_memories
+    memories = await recall_memories(query, limit)
+    if not memories:
+        return "No relevant memories found in vector store."
+        
+    formatted = []
+    for m in memories:
+        payload = m.get("payload", {})
+        score = m.get("score", 0.0)
+        text = payload.get("text", "")
+        source = payload.get("source", "unknown")
+        created = payload.get("created_at", "")
+        formatted.append(f"--- Memory (Score: {score:.3f}, Source: {source}, Created: {created}) ---\n{text}\n")
+        
+    return "\n".join(formatted)
 
 
 if __name__ == "__main__":

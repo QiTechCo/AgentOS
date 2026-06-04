@@ -128,3 +128,15 @@ def write_artifact(req: ArtifactCreateRequest):
         return {"message": f"Artifact {req.filename} written successfully.", "path": str(p)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to write artifact: {e}")
+
+
+class RecallRequest(BaseModel):
+    query: str
+    limit: Optional[int] = 5
+
+
+@router.post("/memory/recall")
+async def recall(req: RecallRequest):
+    from ..bridges.memory_os import recall_memories
+    results = await recall_memories(req.query, req.limit)
+    return {"results": results}

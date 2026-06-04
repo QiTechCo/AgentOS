@@ -105,15 +105,24 @@ class AgentRouter:
             return {**base, "model": model_str or "llama3.1", "reply": reply}
             
         if backend == "hermes_mcp":
-            raise NotImplementedError(
-                f"persona '{p['name']}': the hermes_mcp seam is conversation I/O — it does not "
-                "prompt Hermes' agent loop. Use /hermes/* for messaging; cognition will use hermes acp."
-            )
+            # Drive Hermes over ACP for active cognition tasks
+            from ..bridges.hermes_acp import HermesACPClient
+            client = HermesACPClient()
+            reply_chunks = []
+            logger.info(f"Invoking remote Hermes ACP for persona '{p['name']}' cognition turn...")
+            async for event in client.stream_prompt(message):
+                if event.get("type") == "chunk":
+                    reply_chunks.append(event.get("text", ""))
+                elif event.get("type") == "error":
+                    raise pv.ProviderError(event.get("message", "ACP Error"))
+            reply = "".join(reply_chunks)
+            return {**base, "model": "hermes-acp", "reply": reply}
             
         if backend == "claude_code":
-            raise NotImplementedError(
-                f"persona '{p['name']}': Claude Code (headless) integration is a later milestone."
-            )
+            from ..bridges.claude_code import ClaudeCodeClient
+            client = ClaudeCodeClient()
+            reply = await client.run_prompt(message, timeout_sec=int(timeout_ms / 1000.0))
+            return {**base, "model": "claude-code-cli", "reply": reply}
             
         raise NotImplementedError(f"persona '{p['name']}' backend '{backend}' is not supported")
 
