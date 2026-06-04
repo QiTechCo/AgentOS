@@ -76,6 +76,27 @@ def update_goal_status(goal_id: str, req: GoalStatusUpdateRequest):
     return {"message": msg}
 
 
+class GoalStepCreateRequest(BaseModel):
+    description: str
+    assignee: str
+
+
+class GoalStepStatusUpdateRequest(BaseModel):
+    status: str
+
+
+@router.post("/goals/{goal_id}/steps")
+def create_goal_step(goal_id: str, req: GoalStepCreateRequest):
+    msg = mcp_srv.add_goal_step(goal_id, req.description, req.assignee)
+    return {"message": msg}
+
+
+@router.post("/goals/{goal_id}/steps/{step_id}/status")
+def update_goal_step_status(goal_id: str, step_id: str, req: GoalStepStatusUpdateRequest):
+    msg = mcp_srv.update_goal_step_status(goal_id, step_id, req.status)
+    return {"message": msg}
+
+
 @router.get("/artifacts")
 def list_artifacts():
     d = get_settings().agent_os_dir / "artifacts"

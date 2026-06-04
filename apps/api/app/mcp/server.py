@@ -77,7 +77,8 @@ DEFAULT_GOALS = {
             "owner": "Antigravity",
             "status": "in_progress",
             "target_date": "2026-06-15",
-            "created_at": datetime.now().isoformat()
+            "created_at": datetime.now().isoformat(),
+            "steps": []
         }
     ]
 }
@@ -172,7 +173,8 @@ def add_goal(description: str, owner: str, target_date: str) -> str:
         "owner": owner,
         "status": "pending",
         "target_date": target_date,
-        "created_at": datetime.now().isoformat()
+        "created_at": datetime.now().isoformat(),
+        "steps": []
     }
     
     if "goals" not in goals_data:
@@ -205,6 +207,66 @@ def update_goal_status(goal_id: str, status: str) -> str:
         _write_json("goals.json", goals_data)
         return f"Goal {goal_id} status updated to {status}."
     return f"Goal with ID {goal_id} not found."
+
+
+@mcp.tool()
+def add_goal_step(goal_id: str, description: str, assignee: str) -> str:
+    """Add a checklist step under an existing goal.
+    
+    Args:
+        goal_id: The ID of the goal.
+        description: Description of the step.
+        assignee: The assignee (e.g., 'Human', 'Daedalus', 'Hephaestus', 'Hermes').
+    """
+    goals_data = _read_json("goals.json", DEFAULT_GOALS)
+    step_id = str(uuid.uuid4())[:8]
+    
+    found = False
+    for g in goals_data.get("goals", []):
+        if g.get("id") == goal_id:
+            if "steps" not in g:
+                g["steps"] = []
+            g["steps"].append({
+                "id": step_id,
+                "description": description,
+                "assignee": assignee,
+                "status": "pending"
+            })
+            found = True
+            break
+            
+    if found:
+        _write_json("goals.json", goals_data)
+        return f"Added step {step_id} to goal {goal_id} assigned to {assignee}."
+    return f"Goal with ID {goal_id} not found."
+
+
+@mcp.tool()
+def update_goal_step_status(goal_id: str, step_id: str, status: str) -> str:
+    """Update the status of a specific step under a goal.
+    
+    Args:
+        goal_id: The ID of the goal.
+        step_id: The ID of the step.
+        status: The new status ('pending' or 'completed').
+    """
+    goals_data = _read_json("goals.json", DEFAULT_GOALS)
+    
+    found = False
+    for g in goals_data.get("goals", []):
+        if g.get("id") == goal_id:
+            for s in g.get("steps", []):
+                if s.get("id") == step_id:
+                    s["status"] = status
+                    found = True
+                    break
+            if found:
+                break
+                
+    if found:
+        _write_json("goals.json", goals_data)
+        return f"Step {step_id} under goal {goal_id} updated to {status}."
+    return f"Step {step_id} under goal {goal_id} not found."
 
 
 @mcp.tool()

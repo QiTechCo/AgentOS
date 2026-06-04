@@ -10,7 +10,8 @@ const API = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
 type Conn = { name: string; ok: boolean; enabled: boolean; detail: string; latency_ms: number | null };
 type Persona = { name: string; title?: string; role?: string; backend?: string; model?: string };
-type Goal = { id: string; description: string; owner: string; status: string; target_date: string };
+type GoalStep = { id: string; description: string; assignee: string; status: string };
+type Goal = { id: string; description: string; owner: string; status: string; target_date: string; steps?: GoalStep[] };
 type ArtifactFile = { name: string; size_bytes: number; modified_at: number };
 type Message = { sender: "user" | "agent"; text: string; persona?: string; thinking?: string };
 
@@ -215,6 +216,23 @@ export default function MissionControl() {
     const nextStatus = currentStatus === "completed" ? "pending" : "completed";
     try {
       const response = await fetch(`${API}/agent_os/goals/${goalId}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus })
+      });
+      if (response.ok) {
+        loadSystemState();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Toggle or update a goal step status
+  const handleUpdateGoalStepStatus = async (goalId: string, stepId: string, currentStatus: string) => {
+    const nextStatus = currentStatus === "completed" ? "pending" : "completed";
+    try {
+      const response = await fetch(`${API}/agent_os/goals/${goalId}/steps/${stepId}/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: nextStatus })
@@ -534,7 +552,7 @@ export default function MissionControl() {
                 <span className="section-title"><CheckCircle2 size={14} /> Project Tracker</span>
                 <div style={{ margin: "10px 0" }}>
                   {goals.map((g) => (
-                    <div key={g.id} className="goal-item">
+                    <div key={g.id} className="goal-item" style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
                       <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
                         <input 
                           type="checkbox" 
@@ -542,13 +560,48 @@ export default function MissionControl() {
                           onChange={() => handleUpdateGoalStatus(g.id, g.status)}
                           style={{ marginTop: "4px", cursor: "pointer" }}
                         />
-                        <div style={{ display: "flex", flexDirection: "column" }}>
-                          <span style={{ fontSize: "13px", textDecoration: g.status === "completed" ? "line-through" : "none", color: g.status === "completed" ? "var(--text-muted)" : "var(--text)" }}>
+                        <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+                          <span style={{ fontSize: "13.5px", fontWeight: "600", textDecoration: g.status === "completed" ? "line-through" : "none", color: g.status === "completed" ? "var(--text-muted)" : "var(--text)" }}>
                             {g.description}
                           </span>
-                          <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>
-                            Owner: {g.owner} · Due: {g.target_date}
+                          <span style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
+                            Owner: <span style={{ color: "#a5b4fc", fontWeight: "500" }}>{g.owner}</span> · Due: {g.target_date}
                           </span>
+                        </div>
+                      </div>
+                      
+                      {/* Steps checklist matrix */}
+                      <div style={{ marginLeft: "26px", marginTop: "10px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                        {g.steps && g.steps.map((step) => (
+                          <div key={step.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px" }}>
+                            <input 
+                              type="checkbox" 
+                              checked={step.status === "completed"} 
+                              onChange={() => handleUpdateGoalStepStatus(g.id, step.id, step.status)}
+                              style={{ cursor: "pointer", width: "12px", height: "12px" }}
+                            />
+                            <span style={{ textDecoration: step.status === "completed" ? "line-through" : "none", color: step.status === "completed" ? "var(--text-muted)" : "var(--text)" }}>
+                              {step.description}
+                            </span>
+                            <span style={{ 
+                              marginLeft: "auto", 
+                              fontSize: "9.5px", 
+                              fontWeight: "600", 
+                              textTransform: "uppercase", 
+                              padding: "2px 6px", 
+                              borderRadius: "4px",
+                              background: step.assignee === "Human" ? "rgba(16, 185, 129, 0.1)" : "rgba(99, 102, 241, 0.1)",
+                              border: step.assignee === "Human" ? "1px solid rgba(16, 185, 129, 0.2)" : "1px solid rgba(99, 102, 241, 0.2)",
+                              color: step.assignee === "Human" ? "#34d399" : "#a5b4fc"
+                            }}>
+                              {step.assignee}
+                            </span>
+                          </div>
+                        ))}
+                        
+                        {/* Add Step Inline Form */}
+                        <div style={{ marginTop: "4px" }}>
+                          <GoalStepForm goalId={g.id} onStepAdded={loadSystemState} />
                         </div>
                       </div>
                     </div>
@@ -716,5 +769,60 @@ export default function MissionControl() {
         </div>
       )}
     </div>
+  );
+}
+
+
+function GoalStepForm({ goalId, onStepAdded }: { goalId: string; onStepAdded: () => void }) {
+  const [desc, setDesc] = useState("");
+  const [assignee, setAssignee] = useState("Human");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!desc.trim()) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/agent_os/goals/${goalId}/steps`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: desc, assignee })
+      });
+      if (res.ok) {
+        setDesc("");
+        onStepAdded();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "4px" }}>
+      <input 
+        type="text" 
+        value={desc}
+        onChange={(e) => setDesc(e.target.value)}
+        placeholder="Add checklist step..."
+        style={{ flex: 1, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "4px", color: "white", padding: "3px 8px", fontSize: "11px", outline: "none" }}
+        disabled={loading}
+      />
+      <select 
+        value={assignee}
+        onChange={(e) => setAssignee(e.target.value)}
+        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "white", padding: "2px 4px", borderRadius: "4px", fontSize: "11px", outline: "none", cursor: "pointer" }}
+        disabled={loading}
+      >
+        <option value="Human" style={{ background: "#0b0f19" }}>Human</option>
+        <option value="Hermes" style={{ background: "#0b0f19" }}>Hermes</option>
+        <option value="Claude Code" style={{ background: "#0b0f19" }}>Claude Code</option>
+        <option value="Antigravity" style={{ background: "#0b0f19" }}>Antigravity</option>
+      </select>
+      <button type="submit" style={{ background: "rgba(255,255,255,0.08)", border: "none", borderRadius: "4px", padding: "3px 8px", cursor: "pointer", color: "white", fontSize: "11px" }} disabled={loading}>
+        Add
+      </button>
+    </form>
   );
 }
