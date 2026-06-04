@@ -1,0 +1,34 @@
+# The Pantheon — personas as config, not code.
+# The AgentRouter loads this and dispatches each task to the right backend.
+# Gemini API is used for all models except Claude Code.
+personas:
+  hermes:
+    title: Conductor
+    backend: hermes_mcp        # mcpo bridge: conversation I/O only
+    role: Monitor & message on Hermes channels; cognition routes via Gemini
+    default: true
+  athena:
+    title: Strategist
+    backend: gemini            # Gemini API direct (high reasoning)
+    model: gemini-3.5-pro
+    role: Hard logic, architecture, writing, strategy
+    cost_ceiling_usd_day: 5
+  hephaestus:
+    title: Smith
+    backend: claude_code       # Claude Code CLI (headless)
+    role: Coding tasks against local repos
+  daedalus:
+    title: Builder
+    backend: antigravity       # Google Antigravity SDK
+    model: gemini-3.5-flash
+    role: Autonomous multi-step build, testing, and browser actions
+  apollo:
+    title: Seeker
+    backend: gemini            # Gemini API direct (fast multimodal)
+    model: gemini-3.5-flash
+    role: Deep research, fast multimodal analysis, and document parsing
+  mercury:
+    title: Courier
+    backend: gemini            # Low cost Gemini/Ollama
+    model: gemini-3.5-flash
+    role: Autonomous cron jobs, system health checks, and data collection

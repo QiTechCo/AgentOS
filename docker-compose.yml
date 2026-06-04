@@ -1,0 +1,50 @@
+# Agent OS (Hermes OS) — Multi-Agent Stack
+version: '3.8'
+
+services:
+  api:
+    build: ./apps/api
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./.agent_os:/app/.agent_os
+    restart: unless-stopped
+
+  web:
+    build: ./apps/web
+    env_file: .env
+    ports:
+      - "8088:3000"   # Mission Control on :8088
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  worker:
+    build: ./apps/worker
+    env_file: .env
+    depends_on:
+      - redis
+    volumes:
+      - ./.agent_os:/app/.agent_os
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-agentos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-in-dev}
+      POSTGRES_DB: ${POSTGRES_DB:-agentos}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
