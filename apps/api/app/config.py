@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     database_url: str = ""
     redis_url: str = "redis://redis:6379/0"
 
+    # Proxmox SSH & LXC Config (for driving ACP)
+    proxmox_ssh_host: str = "10.10.10.117"
+    proxmox_ssh_user: str = "root"
+    hermes_lxc_id: int = 102
+    hermes_python_path: str = "/usr/local/lib/hermes-agent/venv/bin/python"
+
     # Path Resolution
     @property
     def root_dir(self) -> Path:

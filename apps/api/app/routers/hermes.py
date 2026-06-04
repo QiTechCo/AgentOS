@@ -1,7 +1,11 @@
+import json
+from typing import Optional
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ..bridges.hermes_mcp import HermesClient, HermesError, HermesDisabled
+from ..bridges.hermes_acp import HermesACPClient
 
 router = APIRouter(prefix="/hermes", tags=["hermes"])
 
@@ -49,3 +53,19 @@ async def send(req: SendRequest):
         raise HTTPException(status_code=503, detail=str(e))
     except HermesError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+class ACPPromptRequest(BaseModel):
+    prompt: str
+    session_id: Optional[str] = None
+
+
+@router.post("/acp/prompt")
+async def acp_prompt(req: ACPPromptRequest):
+    client = HermesACPClient()
+    
+    async def generator():
+        async for event in client.stream_prompt(req.prompt, req.session_id):
+            yield f"data: {json.dumps(event)}\n\n"
+            
+    return StreamingResponse(generator(), media_type="text/event-stream")

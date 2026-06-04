@@ -76,6 +76,27 @@ def test_endpoints():
         assert r.text == dummy_html
         print("🟢 Artifact preview retrieval passed (Dana White invoice verified).")
 
+        # Test ACP prompt streaming
+        print("Testing POST /hermes/acp/prompt streaming...")
+        import json
+        with httpx.stream(
+            "POST",
+            f"{API}/hermes/acp/prompt",
+            json={"prompt": "Say hello in three words."}
+        ) as r:
+            assert r.status_code == 200, f"ACP prompt stream failed: {r.status_code}"
+            events = []
+            for line in r.iter_lines():
+                if line.startswith("data: "):
+                    event = json.loads(line[6:])
+                    print(f"  ACP Stream Event received: {event}")
+                    events.append(event)
+            assert len(events) > 0, "No stream events returned"
+            assert any(e["type"] == "session_created" for e in events), "session_created event missing"
+            assert any(e["type"] == "chunk" for e in events), "chunk events missing"
+            assert any(e["type"] == "done" for e in events), "done event missing"
+        print("🟢 ACP prompt streaming passed successfully.")
+
         # Clean up artifact file
         artifact_file = os.path.join(".agent_os", "artifacts", "test_dana_white.html")
         if os.path.exists(artifact_file):

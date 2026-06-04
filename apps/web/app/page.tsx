@@ -81,7 +81,7 @@ export default function MissionControl() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Send a chat message to the gateway agent router
+  // Send a chat message to the gateway agent router (supporting ACP streaming for Hermes)
   const handleSendChat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim() || chatLoading) return;
@@ -91,35 +91,98 @@ export default function MissionControl() {
     setChatInput("");
     setChatLoading(true);
 
-    try {
-      const response = await fetch(`${API}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg, persona: activePersona })
-      });
+    if (activePersona === "hermes") {
+      try {
+        const response = await fetch(`${API}/hermes/acp/prompt`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: userMsg })
+        });
 
-      if (!response.ok) {
-        const errDetail = await response.json();
-        throw new Error(errDetail.detail || "Failed to prompt agent.");
-      }
-
-      const result = await response.json();
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "agent",
-          text: result.reply || `Handoff triggered or executed. Result details: ${JSON.stringify(result)}`,
-          persona: result.persona || activePersona
+        if (!response.ok) {
+          throw new Error("Failed to start Hermes ACP stream");
         }
-      ]);
-      loadSystemState(); // Reload to capture any context updates
-    } catch (err: any) {
-      setMessages((prev) => [
-        ...prev,
-        { sender: "agent", text: `Error: ${err.message}`, persona: "system" }
-      ]);
-    } finally {
-      setChatLoading(false);
+
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        if (!reader) return;
+
+        // Append an empty agent message to update in-place as the stream chunks arrive
+        setMessages((prev) => [...prev, { sender: "agent", text: "", persona: "hermes" }]);
+
+        let accumulatedText = "";
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          const chunkStr = decoder.decode(value);
+          const lines = chunkStr.split("\n\n");
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              try {
+                const event = JSON.parse(line.slice(6));
+                if (event.type === "chunk" && event.text) {
+                  accumulatedText += event.text;
+                  setMessages((prev) => {
+                    const newMsgs = [...prev];
+                    newMsgs[newMsgs.length - 1].text = accumulatedText;
+                    return newMsgs;
+                  });
+                } else if (event.type === "error") {
+                  accumulatedText += `\n[Stream Error: ${event.message}]`;
+                  setMessages((prev) => {
+                    const newMsgs = [...prev];
+                    newMsgs[newMsgs.length - 1].text = accumulatedText;
+                    return newMsgs;
+                  });
+                }
+              } catch (err) {
+                // Ignore parsing errors for partial/malformed lines
+              }
+            }
+          }
+        }
+        loadSystemState(); // Reload goals/context upon prompt completion
+      } catch (err: any) {
+        setMessages((prev) => [
+          ...prev,
+          { sender: "agent", text: `ACP Stream Error: ${err.message}`, persona: "system" }
+        ]);
+      } finally {
+        setChatLoading(false);
+      }
+    } else {
+      // Standard static completion route for Athena/Apollo/Daedalus/Mercury
+      try {
+        const response = await fetch(`${API}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: userMsg, persona: activePersona })
+        });
+
+        if (!response.ok) {
+          const errDetail = await response.json();
+          throw new Error(errDetail.detail || "Failed to prompt agent.");
+        }
+
+        const result = await response.json();
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: "agent",
+            text: result.reply || `Handoff triggered or executed. Result details: ${JSON.stringify(result)}`,
+            persona: result.persona || activePersona
+          }
+        ]);
+        loadSystemState();
+      } catch (err: any) {
+        setMessages((prev) => [
+          ...prev,
+          { sender: "agent", text: `Error: ${err.message}`, persona: "system" }
+        ]);
+      } finally {
+        setChatLoading(false);
+      }
     }
   };
 
