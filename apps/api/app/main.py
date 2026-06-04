@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from .routers import health, connections, personas, ws, hermes, chat, agent_os
+from .auth import verify_auth_token
 
 
 @asynccontextmanager
@@ -26,12 +27,12 @@ app.add_middleware(
 
 # Include routers
 app.include_router(health.router)
-app.include_router(connections.router)
-app.include_router(personas.router)
+app.include_router(connections.router, dependencies=[Depends(verify_auth_token)])
+app.include_router(personas.router, dependencies=[Depends(verify_auth_token)])
 app.include_router(ws.router)
-app.include_router(hermes.router)
-app.include_router(chat.router)
-app.include_router(agent_os.router)
+app.include_router(hermes.router, dependencies=[Depends(verify_auth_token)])
+app.include_router(chat.router, dependencies=[Depends(verify_auth_token)])
+app.include_router(agent_os.router, dependencies=[Depends(verify_auth_token)])
 
 
 @app.get("/")

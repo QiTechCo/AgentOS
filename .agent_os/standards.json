@@ -1,0 +1,14 @@
+{
+  "general": [
+    "Maintain absolute codebase cleanlines and strict module boundaries.",
+    "Keep environment configuration isolated in .env."
+  ],
+  "python": [
+    "Use async/await for I/O bound tasks.",
+    "Include docstrings and types for all functions."
+  ],
+  "javascript": [
+    "Prefer functional components in React and clean, descriptive custom hooks.",
+    "Use semantic HTML elements and CSS variables for theming."
+  ]
+}

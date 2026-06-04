@@ -8,6 +8,16 @@ import {
 
 const API = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
+const fetchAPI = async (path: string, options: RequestInit = {}) => {
+  const token = process.env.NEXT_PUBLIC_AGENT_OS_TOKEN || "";
+  const headers = {
+    "Content-Type": "application/json",
+    ...options.headers,
+    ...(token ? { "X-Agent-OS-Token": token } : {})
+  };
+  return fetch(`${API}${path}`, { ...options, headers });
+};
+
 type Conn = { name: string; ok: boolean; enabled: boolean; detail: string; latency_ms: number | null };
 type Persona = { name: string; title?: string; role?: string; backend?: string; model?: string };
 type GoalStep = { id: string; description: string; assignee: string; status: string };
@@ -52,12 +62,12 @@ export default function MissionControl() {
   const loadSystemState = async () => {
     try {
       const [cRes, pRes, ctxRes, gRes, sRes, artRes] = await Promise.all([
-        fetch(`${API}/connections`).then((r) => r.json()),
-        fetch(`${API}/personas`).then((r) => r.json()),
-        fetch(`${API}/agent_os/context`).then((r) => r.json()),
-        fetch(`${API}/agent_os/goals`).then((r) => r.json()),
-        fetch(`${API}/agent_os/standards`).then((r) => r.json()),
-        fetch(`${API}/agent_os/artifacts`).then((r) => r.json())
+        fetchAPI("/connections").then((r) => r.json()),
+        fetchAPI("/personas").then((r) => r.json()),
+        fetchAPI("/agent_os/context").then((r) => r.json()),
+        fetchAPI("/agent_os/goals").then((r) => r.json()),
+        fetchAPI("/agent_os/standards").then((r) => r.json()),
+        fetchAPI("/agent_os/artifacts").then((r) => r.json())
       ]);
 
       setConns(cRes.connections || []);
@@ -94,9 +104,8 @@ export default function MissionControl() {
 
     if (activePersona === "hermes") {
       try {
-        const response = await fetch(`${API}/hermes/acp/prompt`, {
+        const response = await fetchAPI("/hermes/acp/prompt", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prompt: userMsg })
         });
 
@@ -155,9 +164,8 @@ export default function MissionControl() {
     } else {
       // Standard static completion route for Athena/Apollo/Daedalus/Mercury
       try {
-        const response = await fetch(`${API}/chat`, {
+        const response = await fetchAPI("/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: userMsg, persona: activePersona })
         });
 
@@ -193,9 +201,8 @@ export default function MissionControl() {
     if (!newGoalDesc.trim()) return;
 
     try {
-      const response = await fetch(`${API}/agent_os/goals`, {
+      const response = await fetchAPI("/agent_os/goals", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           description: newGoalDesc,
           owner: newGoalOwner,
@@ -215,9 +222,8 @@ export default function MissionControl() {
   const handleUpdateGoalStatus = async (goalId: string, currentStatus: string) => {
     const nextStatus = currentStatus === "completed" ? "pending" : "completed";
     try {
-      const response = await fetch(`${API}/agent_os/goals/${goalId}/status`, {
+      const response = await fetchAPI(`/agent_os/goals/${goalId}/status`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: nextStatus })
       });
       if (response.ok) {
@@ -232,9 +238,8 @@ export default function MissionControl() {
   const handleUpdateGoalStepStatus = async (goalId: string, stepId: string, currentStatus: string) => {
     const nextStatus = currentStatus === "completed" ? "pending" : "completed";
     try {
-      const response = await fetch(`${API}/agent_os/goals/${goalId}/steps/${stepId}/status`, {
+      const response = await fetchAPI(`/agent_os/goals/${goalId}/steps/${stepId}/status`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: nextStatus })
       });
       if (response.ok) {
@@ -248,7 +253,7 @@ export default function MissionControl() {
   // View an artifact file content
   const handlePreviewArtifact = async (filename: string) => {
     try {
-      const response = await fetch(`${API}/agent_os/artifacts/${filename}`);
+      const response = await fetchAPI(`/agent_os/artifacts/${filename}`);
       if (response.ok) {
         const content = await response.text();
         setActiveArtifactName(filename);
@@ -272,9 +277,8 @@ export default function MissionControl() {
   const runMockupTest = async (testType: string) => {
     if (testType === "invoice") {
       try {
-        const response = await fetch(`${API}/agent_os/artifacts`, {
+        const response = await fetchAPI("/agent_os/artifacts", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             filename: "dana_white_invoice.html",
             content: `<!DOCTYPE html>
@@ -317,7 +321,7 @@ export default function MissionControl() {
       {/* Top Header Navigation */}
       <header>
         <div className="logo-section">
-          <h1>AGENT OS</h1>
+          <img src="/logo.png" alt="Hermes OS Logo" style={{ height: "32px", width: "auto" }} />
           <span className="logo-badge">Unified core</span>
         </div>
 
@@ -345,7 +349,7 @@ export default function MissionControl() {
       {/* Main Multi-Agent Space Grid */}
       <div className="main-space">
         {/* Left Column: Telemetry & Memory Binds */}
-        <div className="scrollable" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "20px", borderRight: "1px solid var(--border)" }}>
+        <div className="sidebar-left" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "20px", borderRight: "1px solid var(--border)" }}>
           {apiError && (
             <div className="glass-panel" style={{ borderLeft: "4px solid var(--rose)", background: "rgba(244, 63, 94, 0.05)" }}>
               <div style={{ display: "flex", gap: "10px", color: "var(--rose)", fontSize: "13px", fontWeight: "600" }}>
@@ -433,7 +437,7 @@ export default function MissionControl() {
         {/* Center Column: Command Bar & Messaging */}
         <div className="chat-container">
           {/* Chat Pane Header */}
-          <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--border)", background: "rgba(3, 7, 18, 0.4)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div className="chat-header" style={{ padding: "16px 24px", borderBottom: "1px solid var(--border)", background: "rgba(3, 7, 18, 0.4)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <Terminal size={16} style={{ color: "var(--primary)" }} />
               <span style={{ fontWeight: "600" }}>Command Console</span>
@@ -492,7 +496,7 @@ export default function MissionControl() {
         </div>
 
         {/* Right Column: Pantheon / Goals / Document filing cabinet */}
-        <div className="scrollable" style={{ padding: "20px" }}>
+        <div className="sidebar-right" style={{ padding: "20px" }}>
           {/* Tab buttons */}
           <div className="tab-header">
             <button 
@@ -783,9 +787,8 @@ function GoalStepForm({ goalId, onStepAdded }: { goalId: string; onStepAdded: ()
     if (!desc.trim()) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API}/agent_os/goals/${goalId}/steps`, {
+      const res = await fetchAPI(`/agent_os/goals/${goalId}/steps`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ description: desc, assignee })
       });
       if (res.ok) {

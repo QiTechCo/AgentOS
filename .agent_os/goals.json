@@ -1,0 +1,13 @@
+{
+  "goals": [
+    {
+      "id": "3f7de6cc",
+      "description": "Establish Unified Agentic OS skeleton and UI",
+      "owner": "Antigravity",
+      "status": "in_progress",
+      "target_date": "2026-06-15",
+      "created_at": "2026-06-04T17:56:02.012967",
+      "steps": []
+    }
+  ]
+}

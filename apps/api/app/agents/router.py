@@ -61,51 +61,51 @@ class AgentRouter:
         # Map models to safe live identifiers if the user requests 3.5 variants, but fall back gracefully
         model_str = model
         if backend == "gemini" and model_str:
-            # Map gemini-3.5-pro -> gemini-1.5-pro (or pro-experimental if API has issues, but pro is standard)
-            # Map gemini-3.5-flash -> gemini-1.5-flash (safe default)
             if "3.5-pro" in model_str:
                 model_str = "gemini-1.5-pro"
             elif "3.5-flash" in model_str:
                 model_str = "gemini-1.5-flash"
 
+        from ..bridges.audit import log_audit
+        log_audit("cognition_start", p["name"], f"Querying model '{model_str or model}' via backend '{backend}' for: '{message[:100]}...'")
+
         logger.info(f"Routing prompt for persona '{p['name']}' to backend '{backend}' using model '{model_str}'")
 
+        res = None
         if backend == "anthropic":
             reply = await pv.anthropic_complete(
                 message, 
                 model=model_str or "claude-3-5-sonnet-20241022",
                 timeout=timeout_ms / 1000.0
             )
-            return {**base, "model": model_str or "claude-3-5-sonnet-20241022", "reply": reply}
+            res = {**base, "model": model_str or "claude-3-5-sonnet-20241022", "reply": reply}
             
-        if backend == "gemini":
+        elif backend == "gemini":
             reply = await pv.gemini_complete(
                 message, 
                 model=model_str or "gemini-1.5-flash",
                 timeout=timeout_ms / 1000.0
             )
-            return {**base, "model": model_str or "gemini-1.5-flash", "reply": reply}
+            res = {**base, "model": model_str or "gemini-1.5-flash", "reply": reply}
             
-        if backend == "antigravity":
-            # Uses direct HTTP Managed Agents endpoint
+        elif backend == "antigravity":
             agent_id = pv.ANTIGRAVITY_AGENT
             out = await pv.antigravity_run(
                 message, 
                 agent=agent_id,
                 timeout=timeout_ms / 1000.0
             )
-            return {**base, "agent": agent_id, **out}
+            res = {**base, "agent": agent_id, **out}
             
-        if backend == "ollama":
+        elif backend == "ollama":
             reply = await pv.ollama_complete(
                 message, 
                 model=model_str or "llama3.1",
                 timeout=timeout_ms / 1000.0
             )
-            return {**base, "model": model_str or "llama3.1", "reply": reply}
+            res = {**base, "model": model_str or "llama3.1", "reply": reply}
             
-        if backend == "hermes_mcp":
-            # Drive Hermes over ACP for active cognition tasks
+        elif backend == "hermes_mcp":
             from ..bridges.hermes_acp import HermesACPClient
             client = HermesACPClient()
             reply_chunks = []
@@ -116,15 +116,21 @@ class AgentRouter:
                 elif event.get("type") == "error":
                     raise pv.ProviderError(event.get("message", "ACP Error"))
             reply = "".join(reply_chunks)
-            return {**base, "model": "hermes-acp", "reply": reply}
+            res = {**base, "model": "hermes-acp", "reply": reply}
             
-        if backend == "claude_code":
+        elif backend == "claude_code":
             from ..bridges.claude_code import ClaudeCodeClient
             client = ClaudeCodeClient()
             reply = await client.run_prompt(message, timeout_sec=int(timeout_ms / 1000.0))
-            return {**base, "model": "claude-code-cli", "reply": reply}
+            res = {**base, "model": "claude-code-cli", "reply": reply}
             
-        raise NotImplementedError(f"persona '{p['name']}' backend '{backend}' is not supported")
+        else:
+            raise NotImplementedError(f"persona '{p['name']}' backend '{backend}' is not supported")
+
+        # Log completion output
+        res_text = res.get("reply", "")
+        log_audit("cognition_end", p["name"], f"Response (model: {res.get('model', res.get('agent', 'unknown'))}): '{res_text[:120]}...'")
+        return res
 
     def provider_status(self) -> list[dict]:
         s = get_settings()

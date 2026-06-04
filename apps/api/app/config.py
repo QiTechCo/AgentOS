@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     anthropic_api_key: str = ""
     ollama_url: str = "http://localhost:11434"
+    agent_os_auth_token: str = ""
 
     # Hermes core REST bridge (mcpo)
     hermes_mcp_url: str = ""

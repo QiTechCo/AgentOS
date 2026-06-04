@@ -8,6 +8,7 @@ from typing import Any, List, Optional
 from mcp.server.fastmcp import FastMCP
 
 from ..config import get_settings
+from ..bridges.audit import log_audit
 
 logger = logging.getLogger("agentos.mcp")
 
@@ -131,6 +132,7 @@ def update_shared_context(summary: str, next_steps: List[str], active_agent: str
     ctx["last_updated"] = datetime.now().isoformat()
     
     _write_json("context.json", ctx)
+    log_audit("context_update", active_agent, f"Summary: {summary[:150]}...")
     return "Shared context updated successfully."
 
 
@@ -182,6 +184,7 @@ def add_goal(description: str, owner: str, target_date: str) -> str:
         
     goals_data["goals"].append(new_goal)
     _write_json("goals.json", goals_data)
+    log_audit("goal_create", owner, f"Created goal {goal_id}: '{description}'")
     return f"New goal added with ID: {goal_id}."
 
 
@@ -205,6 +208,7 @@ def update_goal_status(goal_id: str, status: str) -> str:
             
     if found:
         _write_json("goals.json", goals_data)
+        log_audit("goal_update", "system", f"Goal {goal_id} status updated to {status}")
         return f"Goal {goal_id} status updated to {status}."
     return f"Goal with ID {goal_id} not found."
 
@@ -237,6 +241,7 @@ def add_goal_step(goal_id: str, description: str, assignee: str) -> str:
             
     if found:
         _write_json("goals.json", goals_data)
+        log_audit("goal_step_create", assignee, f"Added step {step_id} ('{description}') to goal {goal_id}")
         return f"Added step {step_id} to goal {goal_id} assigned to {assignee}."
     return f"Goal with ID {goal_id} not found."
 
@@ -265,6 +270,7 @@ def update_goal_step_status(goal_id: str, step_id: str, status: str) -> str:
                 
     if found:
         _write_json("goals.json", goals_data)
+        log_audit("goal_step_update", "system", f"Step {step_id} under goal {goal_id} status updated to {status}")
         return f"Step {step_id} under goal {goal_id} updated to {status}."
     return f"Step {step_id} under goal {goal_id} not found."
 
@@ -298,6 +304,7 @@ def handoff_task(target_agent: str, task_description: str, context_payload: str)
     ctx["handoffs"] = ctx["handoffs"][-10:] # limit log to last 10 entries
     
     _write_json("context.json", ctx)
+    log_audit("handoff_log", handoff_entry["from_agent"], f"Delegated task {handoff_entry['id']} to {target_agent}: '{task_description}'")
     return f"Handoff to {target_agent} recorded."
 
 
