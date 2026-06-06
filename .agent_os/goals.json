@@ -4,9 +4,19 @@
       "id": "3f7de6cc",
       "description": "Establish Unified Agentic OS skeleton and UI",
       "owner": "Antigravity",
-      "status": "in_progress",
+      "status": "completed",
       "target_date": "2026-06-15",
       "created_at": "2026-06-04T17:56:02.012967",
+      "steps": [],
+      "updated_at": "2026-06-04T18:52:04.906991"
+    },
+    {
+      "id": "a00c0597",
+      "description": "Enlarge logo file",
+      "owner": "Antigravity",
+      "status": "pending",
+      "target_date": "2026-06-10",
+      "created_at": "2026-06-04T18:52:31.430098",
       "steps": []
     }
   ]
